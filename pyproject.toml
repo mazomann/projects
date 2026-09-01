@@ -1,0 +1,6 @@
+[project]
+name = "automations-db"
+version = "0.1.0"
+description = "Root tooling: database migrations and seed for the automation portfolio."
+requires-python = ">=3.11"
+dependencies = ["psycopg[binary]>=3.2"]

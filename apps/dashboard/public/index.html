@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automations dashboard</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#6b7280; --line:#e5e7eb; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --accent:#1d4ed8; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#171a21; --ink:#e6e8eb; --muted:#9aa3ad; --line:#2a2f3a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { padding:20px 24px 8px; display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
+  h1 { margin:0; font-size:20px; }
+  header small { color:var(--muted); }
+  main { padding:8px 24px 40px; display:grid; gap:20px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .tile .n { font-size:26px; font-weight:600; }
+  .tile .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  section h2 { margin:0; padding:12px 16px; font-size:14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; }
+  section h2 code { color:var(--muted); font-weight:400; font-size:12px; }
+  .wrap { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; min-width:640px; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; border:1px solid var(--line); }
+  .pill.support { color:var(--accent); } .pill.sales { color:var(--ok); } .pill.billing { color:var(--warn); } .pill.needs_human { color:var(--bad); } .pill.spam { color:var(--muted); }
+  .score { font-weight:600; } .score.hi { color:var(--ok); } .score.lo { color:var(--muted); }
+  .late { color:var(--bad); }
+  .muted { color:var(--muted); }
+  .err { padding:12px 16px; color:var(--bad); }
+  .bar { height:8px; background:var(--accent); border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Automations dashboard</h1>
+  <small id="status">loading…</small>
+</header>
+<main>
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <h2>Invoices <code>SELECT … FROM v_invoice ORDER BY invoice_date DESC</code></h2>
+    <div class="wrap"><table id="invoices"></table></div>
+  </section>
+
+  <section>
+    <h2>Spend by vendor <code>GROUP BY v.name ORDER BY sum(total) DESC</code></h2>
+    <div class="wrap"><table id="spend"></table></div>
+  </section>
+
+  <section>
+    <h2>Leads <code>ORDER BY fit_score DESC NULLS LAST</code></h2>
+    <div class="wrap"><table id="leads"></table></div>
+  </section>
+
+  <section>
+    <h2>Inbox triage <code>ORDER BY received_at DESC</code></h2>
+    <div class="wrap"><table id="triage"></table></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const money = (v, c = "USD") => v == null ? "" : new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(Number(v));
+const date = (v) => v ? String(v).slice(0, 10) : "";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+function table(el, cols, rows) {
+  if (!rows.length) { el.innerHTML = `<tr><td class="muted">no rows yet. Run db/seed.py or a pipeline.</td></tr>`; return; }
+  el.innerHTML = `<thead><tr>${cols.map(c => `<th class="${c.num ? "num" : ""}">${c.h}</th>`).join("")}</tr></thead>` +
+    `<tbody>${rows.map(r => `<tr>${cols.map(c => `<td class="${c.num ? "num" : ""}">${c.f(r)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+}
+
+async function get(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`${path}: ${(await r.json()).error ?? r.status}`);
+  return r.json();
+}
+
+async function load() {
+  try {
+    const [s, inv, spend, leads, tri] = await Promise.all([
+      get("/api/summary"), get("/api/invoices?limit=50"), get("/api/spend"), get("/api/leads?limit=50"), get("/api/triage?limit=50"),
+    ]);
+    $("tiles").innerHTML = [
+      ["Invoices", s.invoices], ["Invoice spend", money(s.invoice_spend)], ["Leads scored", s.leads],
+      ["Good fits (≥7)", s.good_leads], ["Emails triaged", s.emails], ["Need a human", s.needs_human],
+    ].map(([l, n]) => `<div class="tile"><div class="n">${esc(n)}</div><div class="l">${l}</div></div>`).join("");
+
+    table($("invoices"), [
+      { h: "Vendor", f: r => esc(r.vendor) }, { h: "Number", f: r => esc(r.invoice_number) },
+      { h: "Date", f: r => date(r.invoice_date) }, { h: "Due", f: r => `${date(r.due_date)}${r.days_late > 0 ? ` <span class="late">${r.days_late}d late</span>` : ""}` },
+      { h: "Lines", f: r => r.line_count, num: true }, { h: "Subtotal", f: r => money(r.subtotal, r.currency), num: true },
+      { h: "Tax", f: r => money(r.tax, r.currency), num: true }, { h: "Total", f: r => `<b>${money(r.total, r.currency)}</b>`, num: true },
+    ], inv);
+
+    const max = Math.max(...spend.map(r => Number(r.spend)), 1);
+    table($("spend"), [
+      { h: "Vendor", f: r => esc(r.vendor) }, { h: "Invoices", f: r => r.invoices, num: true },
+      { h: "Spend", f: r => money(r.spend), num: true },
+      { h: "", f: r => `<div class="bar" style="width:${Math.round(100 * Number(r.spend) / max)}%"></div>` },
+    ], spend);
+
+    table($("leads"), [
+      { h: "Score", f: r => `<span class="score ${r.fit_score >= 7 ? "hi" : r.fit_score <= 3 ? "lo" : ""}">${r.fit_score ?? "—"}</span>`, num: true },
+      { h: "Company", f: r => `${esc(r.company ?? "")}<br><span class="muted">${esc(r.url)}</span>` },
+      { h: "Summary", f: r => esc(r.summary ?? r.error ?? "") },
+      { h: "Opener", f: r => esc(r.opener ?? "") },
+      { h: "Reasons", f: r => (r.fit_reasons ?? []).map(esc).join(", ") },
+    ], leads);
+
+    table($("triage"), [
+      { h: "Category", f: r => `<span class="pill ${r.category}">${r.category}</span>` },
+      { h: "Conf", f: r => Number(r.confidence).toFixed(2), num: true },
+      { h: "Urgency", f: r => r.urgency },
+      { h: "From", f: r => esc(r.sender) }, { h: "Subject", f: r => esc(r.subject) },
+      { h: "Summary", f: r => esc(r.summary) },
+      { h: "Action", f: r => r.escalated ? "Slack alert" : r.drafted ? "draft waiting" : "" },
+    ], tri);
+
+    $("status").textContent = `live from PostgreSQL · ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    $("status").textContent = "error";
+    $("tiles").innerHTML = `<div class="err">${esc(e.message)}. Is PostgreSQL running and migrated? See db/README.md.</div>`;
+  }
+}
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

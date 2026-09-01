@@ -1,0 +1,26 @@
+{
+  "name": "invoice-extractor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PDF invoice -> Claude structured output -> zod-validated JSON (TypeScript twin of ../extractor)",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc",
+    "extract": "tsx src/cli.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.123.0",
+    "pdf-parse": "2.4.5",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
