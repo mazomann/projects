@@ -1,0 +1,12 @@
+[
+  {"id": "m1", "from": "dana@example-client.com", "subject": "Can't log in to the portal", "date": "2026-09-01T08:12:00Z",
+   "body": "Hi, since yesterday the client portal says my password is wrong. I tried resetting twice. Can you help? Thanks, Dana"},
+  {"id": "m2", "from": "mike@new-prospect.example", "subject": "Quote for bookkeeping?", "date": "2026-09-01T09:30:00Z",
+   "body": "Hello, we're a 6-person landscaping company and need monthly bookkeeping plus year-end. What would that cost and can we talk this week?"},
+  {"id": "m3", "from": "billing@vendor.example", "subject": "Invoice 4471 overdue - final notice", "date": "2026-09-01T10:02:00Z",
+   "body": "Your invoice 4471 for $1,240.00 is 30 days overdue. Please remit within 5 days to avoid service interruption."},
+  {"id": "m4", "from": "promo@growthblast.example", "subject": "10x your leads with AI (limited offer)", "date": "2026-09-01T10:45:00Z",
+   "body": "Tired of slow growth? Our AI lead engine guarantees 500 leads a month. Reply YES for a free trial!!!"},
+  {"id": "m5", "from": "j.rivera@example-client.com", "subject": "Very disappointed", "date": "2026-09-01T11:20:00Z",
+   "body": "I was told the report would be ready Friday. It's Monday and nobody has called me. If this isn't sorted today I'll be speaking to my lawyer."}
+]

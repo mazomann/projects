@@ -6,7 +6,7 @@ Automation builds shipped as runnable n8n workflows with real code inside. Each 
 |---|-------|-------------------|-------|--------|
 | 01 | [Invoice extractor](builds/01-invoice-extractor/) | PDF invoices -> structured rows in Google Sheets + summary notification | n8n, JavaScript, Python, Claude structured outputs, Google Sheets | built, tests passing, live run pending API key |
 | 02 | [Lead scraper + summarizer](builds/02-lead-scraper-summarizer/) | Company URLs -> scraped summary, fit score, opener -> Sheet + HubSpot CRM | n8n, Python, httpx, Claude, HubSpot | built, tests passing, live run pending API key |
-| 03 | [Inbox triage](builds/03-inbox-triage/) | Gmail -> classify, label, draft replies, daily digest, Slack escalation | n8n, Gmail, Claude, Slack | planned |
+| 03 | [Inbox triage](builds/03-inbox-triage/) | Gmail -> classify, label, draft replies, daily digest, Slack escalation | n8n, Python, Gmail, Claude, Slack | built, tests passing, live run pending API key |
 
 ## Running any build locally
 
