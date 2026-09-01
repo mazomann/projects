@@ -10,14 +10,14 @@ Automation builds shipped as runnable n8n workflows with real code inside. Each 
 
 ## Running any build locally
 
-1. `npm install -g n8n` then `n8n start` (opens http://localhost:5678).
+1. `npm install -g n8n` then `n8n start` (opens http://localhost:5678). See [n8n/README.md](n8n/README.md) for the env switches and headless import.
 2. Import `builds/<name>/workflow.json` via Workflows -> Import from file.
 3. Add the credentials listed in that build's README.
 4. Run on the sample data in `builds/<name>/sample-data/`.
 
 ## Layout
 
-- `builds/` one folder per shipped automation
+- `builds/` one folder per shipped automation, plus [rescue-checklist.md](builds/rescue-checklist.md) for fixing other people's broken workflows
 - `n8n/` local n8n config and env template
-- `gigs/` marketplace profiles, offers, proposal template, pipeline tracker
+- `gigs/` marketplace [profile copy](gigs/profiles/profile.md), [offers and pricing](gigs/offers/offers.md), [proposal template](gigs/proposals/template.md), pipeline tracker
 - `learning/` session log
