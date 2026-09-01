@@ -10,3 +10,6 @@ __pycache__/
 Thumbs.db
 sample-data/private/
 n8n/credentials.json
+
+# private Obsidian memory vault, not part of the public portfolio
+automations/
