@@ -1,0 +1,151 @@
+{
+  "name": "01 Invoice extractor (PDF -> Sheets)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Manual trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $env.INVOICE_INBOX || 'C:/Automations/builds/01-invoice-extractor/sample-data' }}/*.pdf",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Read PDFs from folder",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Extract PDF text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Guard: scanned PDFs have no text layer and need OCR (out of scope v1).\nconst out = [];\nfor (const item of $input.all()) {\n  const text = (item.json.text || '').trim();\n  const file = item.binary?.data?.fileName || 'unknown.pdf';\n  if (text.length < 40) {\n    out.push({ json: { file, error: 'no text layer (scanned PDF?)', skip: true } });\n  } else {\n    out.push({ json: { file, text, skip: false } });\n  }\n}\nreturn out;"
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Guard: has text?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.skip }}", "rightValue": false, "operator": { "type": "boolean", "operation": "false", "singleValue": true } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Has text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: $env.INVOICE_MODEL || 'claude-sonnet-5',\n  max_tokens: 2048,\n  system: 'You extract structured data from invoice text. Return only the fields in the schema. Dates as YYYY-MM-DD. Amounts as plain numbers without currency symbols. line_items amount = quantity * unit_price. subtotal = sum of amounts. total = subtotal + tax. If a field is genuinely absent use null (due_date) or 0 (tax). Do not invent values.',\n  messages: [{ role: 'user', content: '<invoice>\\n' + $json.text + '\\n</invoice>' }],\n  output_config: { format: { type: 'json_schema', schema: {\n    type: 'object', additionalProperties: false,\n    required: ['vendor','invoice_number','invoice_date','due_date','currency','subtotal','tax','total','line_items'],\n    properties: {\n      vendor: { type: 'string' },\n      invoice_number: { type: 'string' },\n      invoice_date: { type: 'string', description: 'YYYY-MM-DD' },\n      due_date: { type: ['string','null'] },\n      currency: { type: 'string', description: 'ISO 4217' },\n      subtotal: { type: 'number' }, tax: { type: 'number' }, total: { type: 'number' },\n      line_items: { type: 'array', items: { type: 'object', additionalProperties: false,\n        required: ['description','quantity','unit_price','amount'],\n        properties: { description: { type: 'string' }, quantity: { type: 'number' }, unit_price: { type: 'number' }, amount: { type: 'number' } } } }\n    } } }\n}) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Claude: extract fields",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, -100],
+      "credentials": { "anthropicApi": { "id": "REPLACE_ME", "name": "Anthropic account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the structured-output text block and reconcile totals (same rules as extractor/schema.py).\nconst out = [];\nfor (const item of $input.all()) {\n  const src = $('Guard: has text?').item.json;\n  const file = src.file;\n  try {\n    const block = (item.json.content || []).find(b => b.type === 'text');\n    if (!block) throw new Error('no text block in response (stop_reason=' + item.json.stop_reason + ')');\n    const inv = JSON.parse(block.text);\n    const r2 = n => Math.round(n * 100) / 100;\n    const itemsSum = r2(inv.line_items.reduce((s, li) => s + li.amount, 0));\n    if (Math.abs(itemsSum - inv.subtotal) > 0.02) throw new Error(`line items ${itemsSum} != subtotal ${inv.subtotal}`);\n    if (Math.abs(r2(inv.subtotal + inv.tax) - inv.total) > 0.02) throw new Error(`subtotal+tax != total ${inv.total}`);\n    if (inv.due_date && inv.due_date < inv.invoice_date) throw new Error('due_date before invoice_date');\n    out.push({ json: {\n      file, vendor: inv.vendor, invoice_number: inv.invoice_number, invoice_date: inv.invoice_date,\n      due_date: inv.due_date || '', currency: (inv.currency || 'USD').toUpperCase(),\n      subtotal: inv.subtotal, tax: inv.tax, total: inv.total,\n      line_items: inv.line_items.map(li => `${li.quantity} x ${li.description} @ ${li.unit_price.toFixed(2)}`).join('; '),\n      input_tokens: item.json.usage?.input_tokens, output_tokens: item.json.usage?.output_tokens,\n      error: ''\n    } });\n  } catch (e) {\n    out.push({ json: { file, error: e.message } });\n  }\n}\nreturn out;"
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Validate + flatten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, -100]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.INVOICE_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Invoices" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Append row to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1540, -100],
+      "credentials": { "googleSheetsOAuth2Api": { "id": "REPLACE_ME", "name": "Google Sheets account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// One summary line for the run; goes to Slack/email. Failed files are listed so nothing is silently lost.\nconst rows = $('Validate + flatten').all().map(i => i.json);\nconst skipped = $('Guard: has text?').all().map(i => i.json).filter(j => j.skip);\nconst ok = rows.filter(r => !r.error);\nconst bad = rows.filter(r => r.error).concat(skipped);\nconst sum = ok.reduce((s, r) => s + (r.total || 0), 0);\nconst lines = [\n  `Invoice run: ${ok.length} extracted, ${bad.length} need attention`,\n  ...ok.map(r => `  OK ${r.file}: ${r.vendor} #${r.invoice_number} ${r.currency} ${r.total.toFixed(2)} due ${r.due_date || 'n/a'}`),\n  ...bad.map(r => `  !! ${r.file}: ${r.error}`),\n  `Total booked: ${sum.toFixed(2)}`\n];\nreturn [{ json: { text: lines.join('\\n'), ok: ok.length, failed: bad.length } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Build run summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, -100],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": { "__rl": true, "mode": "name", "value": "={{ $env.INVOICE_SLACK_CHANNEL || '#finance' }}" },
+        "text": "={{ $json.text }}",
+        "otherOptions": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Post summary to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1980, -100],
+      "credentials": { "slackOAuth2Api": { "id": "REPLACE_ME", "name": "Slack account" } }
+    }
+  ],
+  "connections": {
+    "Manual trigger": { "main": [[{ "node": "Read PDFs from folder", "type": "main", "index": 0 }]] },
+    "Read PDFs from folder": { "main": [[{ "node": "Extract PDF text", "type": "main", "index": 0 }]] },
+    "Extract PDF text": { "main": [[{ "node": "Guard: has text?", "type": "main", "index": 0 }]] },
+    "Guard: has text?": { "main": [[{ "node": "Has text?", "type": "main", "index": 0 }]] },
+    "Has text?": { "main": [[{ "node": "Claude: extract fields", "type": "main", "index": 0 }], [{ "node": "Build run summary", "type": "main", "index": 0 }]] },
+    "Claude: extract fields": { "main": [[{ "node": "Validate + flatten", "type": "main", "index": 0 }]] },
+    "Validate + flatten": { "main": [[{ "node": "Append row to Google Sheet", "type": "main", "index": 0 }]] },
+    "Append row to Google Sheet": { "main": [[{ "node": "Build run summary", "type": "main", "index": 0 }]] },
+    "Build run summary": { "main": [[{ "node": "Post summary to Slack", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,133 @@
+[
+  {
+    "file": "inv-001.pdf",
+    "vendor": "Northwind Paper Co.",
+    "invoice_number": "NW-10432",
+    "invoice_date": "2026-08-03",
+    "due_date": "2026-09-02",
+    "currency": "USD",
+    "subtotal": 282.0,
+    "tax": 19.74,
+    "total": 301.74,
+    "line_items": [
+      {
+        "description": "A4 copy paper, 5000 sheets",
+        "quantity": 4,
+        "unit_price": 38.5,
+        "amount": 154.0
+      },
+      {
+        "description": "Toner cartridge HL-2350",
+        "quantity": 2,
+        "unit_price": 64.0,
+        "amount": 128.0
+      }
+    ]
+  },
+  {
+    "file": "inv-002.pdf",
+    "vendor": "Blue Harbor Web Hosting",
+    "invoice_number": "BH-2026-0917",
+    "invoice_date": "2026-08-15",
+    "due_date": "2026-08-30",
+    "currency": "USD",
+    "subtotal": 159.87,
+    "tax": 0.0,
+    "total": 159.87,
+    "line_items": [
+      {
+        "description": "Shared hosting, annual",
+        "quantity": 1,
+        "unit_price": 143.88,
+        "amount": 143.88
+      },
+      {
+        "description": "Domain renewal example-store.com",
+        "quantity": 1,
+        "unit_price": 15.99,
+        "amount": 15.99
+      }
+    ]
+  },
+  {
+    "file": "inv-003.pdf",
+    "vendor": "Cedar & Stone Landscaping LLC",
+    "invoice_number": "1187",
+    "invoice_date": "2026-07-29",
+    "due_date": "2026-08-28",
+    "currency": "USD",
+    "subtotal": 663.5,
+    "tax": 43.13,
+    "total": 706.63,
+    "line_items": [
+      {
+        "description": "Monthly grounds maintenance",
+        "quantity": 1,
+        "unit_price": 425.0,
+        "amount": 425.0
+      },
+      {
+        "description": "Mulch, cubic yard",
+        "quantity": 3,
+        "unit_price": 42.0,
+        "amount": 126.0
+      },
+      {
+        "description": "Irrigation head replacement",
+        "quantity": 6,
+        "unit_price": 18.75,
+        "amount": 112.5
+      }
+    ]
+  },
+  {
+    "file": "inv-004.pdf",
+    "vendor": "Quantum Office Supplies",
+    "invoice_number": "QOS-88121",
+    "invoice_date": "2026-08-20",
+    "due_date": "2026-09-19",
+    "currency": "USD",
+    "subtotal": 689.99,
+    "tax": 48.3,
+    "total": 738.29,
+    "line_items": [
+      {
+        "description": "Ergonomic chair, black",
+        "quantity": 2,
+        "unit_price": 219.0,
+        "amount": 438.0
+      },
+      {
+        "description": "Standing desk converter",
+        "quantity": 1,
+        "unit_price": 189.99,
+        "amount": 189.99
+      },
+      {
+        "description": "Cable management kit",
+        "quantity": 5,
+        "unit_price": 12.4,
+        "amount": 62.0
+      }
+    ]
+  },
+  {
+    "file": "inv-005.pdf",
+    "vendor": "Meridian Cleaning Services",
+    "invoice_number": "MCS-0450",
+    "invoice_date": "2026-08-31",
+    "due_date": "2026-09-14",
+    "currency": "USD",
+    "subtotal": 380.0,
+    "tax": 0.0,
+    "total": 380.0,
+    "line_items": [
+      {
+        "description": "Office cleaning, 4 visits",
+        "quantity": 4,
+        "unit_price": 95.0,
+        "amount": 380.0
+      }
+    ]
+  }
+]
