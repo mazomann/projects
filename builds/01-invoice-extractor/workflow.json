@@ -44,7 +44,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Guard: scanned PDFs have no text layer and need OCR (out of scope v1).\nconst out = [];\nfor (const item of $input.all()) {\n  const text = (item.json.text || '').trim();\n  const file = item.binary?.data?.fileName || 'unknown.pdf';\n  if (text.length < 40) {\n    out.push({ json: { file, error: 'no text layer (scanned PDF?)', skip: true } });\n  } else {\n    out.push({ json: { file, text, skip: false } });\n  }\n}\nreturn out;"
+        "jsCode": "// Guard scanned PDFs (no text layer -> needs OCR, out of scope v1) and build the Claude request body here.\n// Building JSON in a Code node avoids n8n's expression parser choking on \"}}\" inside object literals.\nconst SYSTEM = 'You extract structured data from invoice text. Return only the fields in the schema. Dates as YYYY-MM-DD. Amounts as plain numbers without currency symbols. line_items amount = quantity * unit_price. subtotal = sum of amounts. total = subtotal + tax. If a field is genuinely absent use null (due_date) or 0 (tax). Do not invent values.';\nconst SCHEMA = {\n  type: 'object', additionalProperties: false,\n  required: ['vendor','invoice_number','invoice_date','due_date','currency','subtotal','tax','total','line_items'],\n  properties: {\n    vendor: { type: 'string' }, invoice_number: { type: 'string' },\n    invoice_date: { type: 'string', description: 'YYYY-MM-DD' }, due_date: { type: ['string','null'] },\n    currency: { type: 'string', description: 'ISO 4217' },\n    subtotal: { type: 'number' }, tax: { type: 'number' }, total: { type: 'number' },\n    line_items: { type: 'array', items: { type: 'object', additionalProperties: false,\n      required: ['description','quantity','unit_price','amount'],\n      properties: { description: { type: 'string' }, quantity: { type: 'number' }, unit_price: { type: 'number' }, amount: { type: 'number' } } } }\n  }\n};\nconst files = $('Read PDFs from folder').all();\nconst out = [];\n$input.all().forEach((item, i) => {\n  const text = (item.json.text || '').trim();\n  const file = files[i]?.binary?.data?.fileName || item.binary?.data?.fileName || `file-${i + 1}.pdf`;\n  if (text.length < 40) {\n    out.push({ json: { file, error: 'no text layer (scanned PDF?)', skip: true } });\n    return;\n  }\n  const request = {\n    model: $env.INVOICE_MODEL || 'claude-sonnet-5',\n    max_tokens: 2048,\n    system: SYSTEM,\n    messages: [{ role: 'user', content: '<invoice>\\n' + text + '\\n</invoice>' }],\n    output_config: { format: { type: 'json_schema', schema: SCHEMA } }\n  };\n  out.push({ json: { file, text, skip: false, request } });\n});\nreturn out;"
       },
       "id": "a1000000-0000-4000-8000-000000000004",
       "name": "Guard: has text?",
@@ -106,7 +106,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  model: $env.INVOICE_MODEL || 'claude-sonnet-5',\n  max_tokens: 2048,\n  system: 'You extract structured data from invoice text. Return only the fields in the schema. Dates as YYYY-MM-DD. Amounts as plain numbers without currency symbols. line_items amount = quantity * unit_price. subtotal = sum of amounts. total = subtotal + tax. If a field is genuinely absent use null (due_date) or 0 (tax). Do not invent values.',\n  messages: [{ role: 'user', content: '<invoice>\\n' + $json.text + '\\n</invoice>' }],\n  output_config: { format: { type: 'json_schema', schema: {\n    type: 'object', additionalProperties: false,\n    required: ['vendor','invoice_number','invoice_date','due_date','currency','subtotal','tax','total','line_items'],\n    properties: {\n      vendor: { type: 'string' },\n      invoice_number: { type: 'string' },\n      invoice_date: { type: 'string', description: 'YYYY-MM-DD' },\n      due_date: { type: ['string','null'] },\n      currency: { type: 'string', description: 'ISO 4217' },\n      subtotal: { type: 'number' }, tax: { type: 'number' }, total: { type: 'number' },\n      line_items: { type: 'array', items: { type: 'object', additionalProperties: false,\n        required: ['description','quantity','unit_price','amount'],\n        properties: { description: { type: 'string' }, quantity: { type: 'number' }, unit_price: { type: 'number' }, amount: { type: 'number' } } } }\n    } } }\n}) }}",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
         "options": {
           "timeout": 60000
         }
@@ -121,7 +121,7 @@
       ],
       "credentials": {
         "anthropicApi": {
-          "id": "REPLACE_ME",
+          "id": "anthropic-local",
           "name": "Anthropic account"
         }
       }
@@ -170,7 +170,7 @@
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "REPLACE_ME",
+          "id": "google-sheets-local",
           "name": "Google Sheets account"
         }
       }
@@ -210,7 +210,7 @@
       ],
       "credentials": {
         "slackOAuth2Api": {
-          "id": "REPLACE_ME",
+          "id": "slack-local",
           "name": "Slack account"
         }
       }

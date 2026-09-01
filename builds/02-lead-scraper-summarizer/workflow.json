@@ -1,0 +1,175 @@
+{
+  "id": "lead-scout-02",
+  "name": "02 Lead scout (URLs -> summary, fit score, opener -> Sheet + HubSpot)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "Manual trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.LEAD_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Prospects" },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "Read prospect URLs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [220, 0],
+      "credentials": { "googleSheetsOAuth2Api": { "id": "google-sheets-local", "name": "Google Sheets account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Cost cap and politeness: only rows without a score yet, at most LEAD_MAX per run.\nconst max = Number($env.LEAD_MAX || 50);\nconst rows = $input.all().filter(i => i.json.url && !i.json.fit_score);\nreturn rows.slice(0, max);"
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Unscored rows only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "redirect": { "redirect": {} },
+          "response": { "response": { "responseFormat": "text" } },
+          "timeout": 15000,
+          "batching": { "batch": { "batchSize": 1, "batchInterval": 1500 } }
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "Fetch homepage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reduce HTML to what an analyst would read, then build the Claude request (JSON built here on purpose: n8n expressions choke on '}}').\nconst ICP = $env.LEAD_ICP || 'small professional-services firms (law, accounting, dental) that still handle intake by phone or email';\nconst SYSTEM = 'You are a sales researcher. Given the text of a company website and an ideal customer profile (ICP), write a 3-line factual summary, score fit 1-10 (10 = textbook ICP match), give up to 4 concrete reasons, and write ONE opener sentence that references something specific from their site. Never invent facts that are not on the page. If the page is not a company site, score 1 and say why in red_flags.';\nconst SCHEMA = { type: 'object', additionalProperties: false,\n  required: ['company','summary','fit_score','fit_reasons','opener','red_flags'],\n  properties: { company: { type: 'string' }, summary: { type: 'string' }, fit_score: { type: 'integer', minimum: 1, maximum: 10 },\n    fit_reasons: { type: 'array', items: { type: 'string' }, maxItems: 4 }, opener: { type: 'string' }, red_flags: { type: 'array', items: { type: 'string' } } } };\nconst strip = (html) => {\n  let h = String(html || '');\n  h = h.replace(/<(script|style|noscript|svg|nav|footer|iframe)[\\s\\S]*?<\\/\\1>/gi, ' ');\n  const title = (h.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i) || [,''])[1].trim();\n  const desc = (h.match(/<meta[^>]+(?:name=\"description\"|property=\"og:description\")[^>]+content=\"([^\"]*)\"/i) || [,''])[1].trim();\n  const headings = [...h.matchAll(/<h[123][^>]*>([\\s\\S]*?)<\\/h[123]>/gi)].map(m => m[1].replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim()).slice(0, 20);\n  const text = h.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000);\n  return { title, description: desc, headings, text };\n};\nconst src = $('Unscored rows only').all();\nreturn $input.all().map((item, i) => {\n  const url = src[i].json.url;\n  const rowNumber = src[i].json.row_number;\n  if (item.json.error || typeof item.json.data !== 'string') {\n    return { json: { url, rowNumber, skip: true, error: item.json.error?.message || 'fetch failed' } };\n  }\n  const page = { url, ...strip(item.json.data) };\n  if (page.text.length < 100) return { json: { url, rowNumber, skip: true, error: 'page has almost no text' } };\n  const request = { model: $env.LEAD_MODEL || 'claude-sonnet-5', max_tokens: 1024, system: SYSTEM,\n    messages: [{ role: 'user', content: JSON.stringify({ icp: ICP, page }) }],\n    output_config: { format: { type: 'json_schema', schema: SCHEMA } } };\n  return { json: { url, rowNumber, skip: false, page, request } };\n});"
+      },
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "HTML -> text + request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.skip }}", "rightValue": false, "operator": { "type": "boolean", "operation": "false", "singleValue": true } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000006",
+      "name": "Fetched OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "anthropic-version", "value": "2023-06-01" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "b2000000-0000-4000-8000-000000000007",
+      "name": "Claude: assess fit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, -100],
+      "credentials": { "anthropicApi": { "id": "anthropic-local", "name": "Anthropic account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse + validate the assessment, flatten for the sheet.\nconst src = $('HTML -> text + request').all().filter(i => !i.json.skip);\nreturn $input.all().map((item, i) => {\n  const { url, rowNumber } = src[i].json;\n  try {\n    const block = (item.json.content || []).find(b => b.type === 'text');\n    if (!block) throw new Error('no text block (stop_reason=' + item.json.stop_reason + ')');\n    const a = JSON.parse(block.text);\n    if (!(a.fit_score >= 1 && a.fit_score <= 10)) throw new Error('fit_score out of range');\n    if (!a.company || !a.opener) throw new Error('missing company/opener');\n    return { json: { url, row_number: rowNumber, company: a.company, summary: a.summary, fit_score: a.fit_score,\n      fit_reasons: (a.fit_reasons || []).join(' | '), opener: a.opener, red_flags: (a.red_flags || []).join(' | '),\n      scored_at: new Date().toISOString(), error: '' } };\n  } catch (e) {\n    return { json: { url, row_number: rowNumber, error: e.message } };\n  }\n});"
+      },
+      "id": "b2000000-0000-4000-8000-000000000008",
+      "name": "Validate + flatten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, -100]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.LEAD_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Prospects" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": ["row_number"], "schema": [] },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000009",
+      "name": "Write scores back to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1760, -100],
+      "credentials": { "googleSheetsOAuth2Api": { "id": "google-sheets-local", "name": "Google Sheets account" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c2", "leftValue": "={{ $json.fit_score }}", "rightValue": "={{ Number($env.LEAD_MIN_SCORE || 7) }}", "operator": { "type": "number", "operation": "gte" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000010",
+      "name": "Good fit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1980, -100]
+    },
+    {
+      "parameters": {
+        "resource": "company",
+        "operation": "create",
+        "name": "={{ $json.company }}",
+        "additionalFields": {
+          "domain": "={{ $json.url.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0] }}",
+          "description": "={{ $json.summary }}"
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000011",
+      "name": "Create company in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.1,
+      "position": [2200, -200],
+      "credentials": { "hubspotAppToken": { "id": "hubspot-local", "name": "HubSpot private app" } }
+    }
+  ],
+  "connections": {
+    "Manual trigger": { "main": [[{ "node": "Read prospect URLs", "type": "main", "index": 0 }]] },
+    "Read prospect URLs": { "main": [[{ "node": "Unscored rows only", "type": "main", "index": 0 }]] },
+    "Unscored rows only": { "main": [[{ "node": "Fetch homepage", "type": "main", "index": 0 }]] },
+    "Fetch homepage": { "main": [[{ "node": "HTML -> text + request", "type": "main", "index": 0 }]] },
+    "HTML -> text + request": { "main": [[{ "node": "Fetched OK?", "type": "main", "index": 0 }]] },
+    "Fetched OK?": { "main": [[{ "node": "Claude: assess fit", "type": "main", "index": 0 }], []] },
+    "Claude: assess fit": { "main": [[{ "node": "Validate + flatten", "type": "main", "index": 0 }]] },
+    "Validate + flatten": { "main": [[{ "node": "Write scores back to Sheet", "type": "main", "index": 0 }]] },
+    "Write scores back to Sheet": { "main": [[{ "node": "Good fit?", "type": "main", "index": 0 }]] },
+    "Good fit?": { "main": [[{ "node": "Create company in HubSpot", "type": "main", "index": 0 }], []] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "tags": []
+}

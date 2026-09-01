@@ -1,0 +1,3 @@
+# One URL per line. Placeholders; replace with a real prospect list.
+https://example.com
+https://example.org
