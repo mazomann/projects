@@ -1,4 +1,4 @@
-# AI Automation Portfolio
+# Projects
 
 Automation builds shipped as runnable n8n workflows with real code inside. Each build folder has the workflow JSON, the code, sample data, a README with setup steps, and a short demo video.
 

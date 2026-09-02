@@ -1,6 +1,9 @@
 """Extract text from a PDF. Digital PDFs only; scanned PDFs need OCR (out of scope for v1, see README)."""
+
 from pathlib import Path
+
 from pypdf import PdfReader
+
 
 def pdf_to_text(path: str | Path) -> str:
     reader = PdfReader(str(path))

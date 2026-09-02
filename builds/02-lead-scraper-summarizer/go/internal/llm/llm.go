@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mazomann/ai-automation-portfolio/builds/02-lead-scraper-summarizer/go/internal/lead"
-	"github.com/mazomann/ai-automation-portfolio/builds/02-lead-scraper-summarizer/go/internal/page"
+	"github.com/mazomann/projects/builds/02-lead-scraper-summarizer/go/internal/lead"
+	"github.com/mazomann/projects/builds/02-lead-scraper-summarizer/go/internal/page"
 )
 
 const (
@@ -50,8 +50,6 @@ type Anthropic struct {
 	BaseURL string
 	HTTP    *http.Client
 }
-
-var _ Client = (*Anthropic)(nil)
 
 // NewAnthropic builds a client with production defaults.
 func NewAnthropic(apiKey, model string) *Anthropic {
@@ -137,14 +135,15 @@ func (c *Anthropic) Assess(ctx context.Context, p page.Page, icp string) (lead.A
 		return out, err
 	}
 	var r response
-	if jerr := json.Unmarshal(raw, &r); jerr != nil && resp.StatusCode == http.StatusOK {
-		return out, fmt.Errorf("decode response: %w", jerr)
-	}
+	decodeErr := json.Unmarshal(raw, &r)
 	if resp.StatusCode != http.StatusOK {
-		if r.Error != nil {
+		if decodeErr == nil && r.Error != nil {
 			return out, fmt.Errorf("anthropic HTTP %d: %s: %s", resp.StatusCode, r.Error.Type, r.Error.Message)
 		}
 		return out, fmt.Errorf("anthropic HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	if decodeErr != nil {
+		return out, fmt.Errorf("decode response: %w", decodeErr)
 	}
 	if r.StopReason == "refusal" {
 		return out, ErrRefusal

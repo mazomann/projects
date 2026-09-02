@@ -20,6 +20,7 @@ export const EXPECTED: Expected[] = JSON.parse(readFileSync(`${SAMPLES}/expected
 
 /** expected.json entry without the `file` key, i.e. what the LLM is supposed to return. */
 export function sample(exp: Expected): Omit<Expected, "file"> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructuring `file` into an unused binding is how the key is dropped from `rest`
   const { file: _file, ...rest } = exp;
   return structuredClone(rest);
 }

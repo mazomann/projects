@@ -13,3 +13,29 @@ n8n/credentials.json
 
 # private Obsidian memory vault, not part of the public portfolio
 automations/
+
+# tool caches and build output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.exe
+coverage/
+npm-debug.log*
+
+# local Claude Code overrides
+.claude/settings.local.json
+
+# pipeline outputs (may contain real client data once gigs start)
+leads.csv
+out.csv
+*.out.csv
+
+# gig business: buyer names, budgets, sent proposals stay private
+gigs/tracker.md
+gigs/proposals/*
+!gigs/proposals/template.md
+
+# editor: personal settings out, extension recommendations in
+.vscode/*
+!.vscode/extensions.json

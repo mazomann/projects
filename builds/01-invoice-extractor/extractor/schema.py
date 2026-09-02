@@ -1,13 +1,18 @@
 """Invoice schema and validation. Shared by the CLI and the tests; mirrors the JSON schema sent to the LLM."""
+
 from __future__ import annotations
+
 from datetime import date
+
 from pydantic import BaseModel, Field, field_validator, model_validator
+
 
 class LineItem(BaseModel):
     description: str = Field(min_length=1)
     quantity: float = Field(gt=0)
     unit_price: float = Field(ge=0)
     amount: float = Field(ge=0)
+
 
 class Invoice(BaseModel):
     vendor: str = Field(min_length=1)
@@ -26,7 +31,7 @@ class Invoice(BaseModel):
         return v.upper()
 
     @model_validator(mode="after")
-    def reconcile(self) -> "Invoice":
+    def reconcile(self) -> Invoice:
         """Totals must add up. Catches the most common LLM extraction mistakes."""
         items = round(sum(li.amount for li in self.line_items), 2)
         if abs(items - self.subtotal) > 0.02:
@@ -48,14 +53,27 @@ class Invoice(BaseModel):
             "subtotal": self.subtotal,
             "tax": self.tax,
             "total": self.total,
-            "line_items": "; ".join(f"{li.quantity:g} x {li.description} @ {li.unit_price:.2f}" for li in self.line_items),
+            "line_items": "; ".join(
+                f"{li.quantity:g} x {li.description} @ {li.unit_price:.2f}" for li in self.line_items
+            ),
         }
+
 
 # JSON schema handed to the LLM (strict: no extra keys, everything required so nothing is silently skipped).
 JSON_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["vendor", "invoice_number", "invoice_date", "due_date", "currency", "subtotal", "tax", "total", "line_items"],
+    "required": [
+        "vendor",
+        "invoice_number",
+        "invoice_date",
+        "due_date",
+        "currency",
+        "subtotal",
+        "tax",
+        "total",
+        "line_items",
+    ],
     "properties": {
         "vendor": {"type": "string"},
         "invoice_number": {"type": "string"},

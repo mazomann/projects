@@ -2,12 +2,12 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { makePool, makeDb } from "./db.js";
+import { makeDb } from "./db.js";
 import { handleApi } from "./api.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
-const db = makeDb(makePool());
+const db = makeDb();
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);

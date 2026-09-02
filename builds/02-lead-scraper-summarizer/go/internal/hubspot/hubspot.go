@@ -12,14 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mazomann/ai-automation-portfolio/builds/02-lead-scraper-summarizer/go/internal/lead"
+	"github.com/mazomann/projects/builds/02-lead-scraper-summarizer/go/internal/lead"
 )
 
 // Endpoint is the CRM v3 companies collection.
 var Endpoint = "https://api.hubapi.com/crm/v3/objects/companies"
 
-// HTTPClient performs the request; tests may replace it.
-var HTTPClient = &http.Client{Timeout: 20 * time.Second}
+var httpClient = &http.Client{Timeout: 20 * time.Second}
 
 // Domain strips scheme, path and a leading www. from a URL, as the Python does.
 func Domain(rawURL string) string {
@@ -53,7 +52,7 @@ func CreateCompany(ctx context.Context, token, pageURL string, a lead.Assessment
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := HTTPClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}

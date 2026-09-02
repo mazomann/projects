@@ -59,7 +59,8 @@ export async function main(argv: string[]): Promise<number> {
   return failures ? 1 : 0;
 }
 
-const isDirectRun = process.argv[1] !== undefined && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, "/")}`).href;
+const isDirectRun =
+  process.argv[1] !== undefined && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, "/")}`).href;
 if (isDirectRun) {
   // Set exitCode rather than calling process.exit(): pdf.js keeps a worker around for a tick after
   // destroy(), and a hard exit while it closes trips a libuv assertion on Windows.

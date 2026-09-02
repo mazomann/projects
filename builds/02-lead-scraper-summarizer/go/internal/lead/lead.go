@@ -66,16 +66,11 @@ type Row struct {
 	Assessment
 }
 
-// Sort orders rows by fit score, highest first, keeping input order for ties.
-func Sort(rows []Row) {
-	sort.SliceStable(rows, func(i, j int) bool { return rows[i].FitScore > rows[j].FitScore })
-}
-
-// WriteCSV sorts rows by score descending and writes them as CSV. The
-// hubspot_id column is only emitted when at least one row has an id, which
-// matches the Python DictWriter behaviour.
+// WriteCSV sorts rows by score descending (input order for ties) and writes
+// them as CSV. The hubspot_id column is only emitted when at least one row has
+// an id, which matches the Python DictWriter behaviour.
 func WriteCSV(w io.Writer, rows []Row) error {
-	Sort(rows)
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].FitScore > rows[j].FitScore })
 	withHub := false
 	for _, r := range rows {
 		if r.HubSpotID != "" {

@@ -1,4 +1,4 @@
-module github.com/mazomann/ai-automation-portfolio/builds/02-lead-scraper-summarizer/go
+module github.com/mazomann/projects/builds/02-lead-scraper-summarizer/go
 
 go 1.22
 

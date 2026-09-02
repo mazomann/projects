@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mazomann/ai-automation-portfolio/builds/02-lead-scraper-summarizer/go/internal/lead"
-	"github.com/mazomann/ai-automation-portfolio/builds/02-lead-scraper-summarizer/go/internal/page"
+	"github.com/mazomann/projects/builds/02-lead-scraper-summarizer/go/internal/lead"
+	"github.com/mazomann/projects/builds/02-lead-scraper-summarizer/go/internal/page"
 )
 
 const canned = `{"company":"Harbor & Pike Law","summary":"Three-attorney family law firm in Fort Myers doing phone intake via a receptionist.","fit_score":9,"fit_reasons":["phone intake","small firm"],"opener":"Saw that your receptionist takes intake details and an attorney calls back within a day.","red_flags":[]}`
@@ -89,18 +89,23 @@ func TestAssessParsesStructuredOutput(t *testing.T) {
 }
 
 func TestAssessSkipsNonTextBlocks(t *testing.T) {
+	body, err := json.Marshal(map[string]any{
+		"stop_reason": "end_turn",
+		"content": []map[string]string{
+			{"type": "thinking", "thinking": ""},
+			{"type": "text", "text": canned},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	c := newClient(t, func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"stop_reason":"end_turn","content":[{"type":"thinking","thinking":""},{"type":"text","text":` + strconv(canned) + `}]}`))
+		_, _ = w.Write(body)
 	})
 	a, err := c.Assess(context.Background(), samplePage(), "icp")
 	if err != nil || a.FitScore != 9 {
 		t.Errorf("a=%+v err=%v", a, err)
 	}
-}
-
-func strconv(s string) string {
-	b, _ := json.Marshal(s)
-	return string(b)
 }
 
 func TestAssessRefusal(t *testing.T) {

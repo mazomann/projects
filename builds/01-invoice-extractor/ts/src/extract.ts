@@ -10,7 +10,7 @@ import { z } from "zod";
 import { pdfToText } from "./pdfText.js";
 import { Invoice, JSON_SCHEMA } from "./schema.js";
 
-export const SYSTEM =
+const SYSTEM =
   "You extract structured data from invoice text. Return only the fields in the schema. " +
   "Dates as YYYY-MM-DD. Amounts as plain numbers without currency symbols. " +
   "line_items amount = quantity * unit_price. subtotal = sum of amounts. total = subtotal + tax. " +
@@ -22,8 +22,6 @@ export type Llm = (text: string) => Promise<unknown>;
 /** Real call: Claude structured output constrained to JSON_SCHEMA. */
 export const claudeLlm: Llm = async (text) => {
   const client = new Anthropic(); // reads ANTHROPIC_API_KEY
-  // Same wire shape as the Python version: output_config.format = {type: "json_schema", schema}.
-  // The SDK (0.123) types this natively; only the literal `type` needs `as const`.
   const resp = await client.messages.create({
     model: process.env.INVOICE_MODEL ?? "claude-sonnet-5",
     max_tokens: 2048,
@@ -35,7 +33,7 @@ export const claudeLlm: Llm = async (text) => {
     throw new Error("model refused the request");
   }
   const block = resp.content.find((b) => b.type === "text");
-  if (!block || block.type !== "text") {
+  if (!block) {
     throw new Error("model returned no text block");
   }
   return JSON.parse(block.text) as unknown;
@@ -45,20 +43,14 @@ export const claudeLlm: Llm = async (text) => {
  * Extract and validate. On a validation failure, retry once with the error fed back
  * (LLMs fix arithmetic on a second pass).
  */
-export async function extract(pdfPath: string, llm: Llm = claudeLlm, retries = 1): Promise<Invoice> {
+export async function extract(pdfPath: string, llm: Llm = claudeLlm): Promise<Invoice> {
   const text = await pdfToText(pdfPath);
-  let prompt = text;
-  let lastErr: z.ZodError | undefined;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const raw = await llm(prompt);
-    const result = Invoice.safeParse(raw);
-    if (result.success) return result.data;
-    lastErr = result.error;
-    prompt =
-      `${text}\n\nYour previous extraction failed validation:\n${formatZodError(result.error)}\n` +
-      "Return a corrected extraction.";
-  }
-  throw lastErr as z.ZodError;
+  const first = Invoice.safeParse(await llm(text));
+  if (first.success) return first.data;
+  const retry =
+    `${text}\n\nYour previous extraction failed validation:\n${formatZodError(first.error)}\n` +
+    "Return a corrected extraction.";
+  return Invoice.parse(await llm(retry));
 }
 
 /** One line per issue, like pydantic's error text: "total: subtotal 1 + tax 2 != total 3". */

@@ -1,6 +1,8 @@
 from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
+
 from leadscout.page import html_to_text
 from leadscout.schema import LeadAssessment
 from leadscout.scout import assess
@@ -25,18 +27,29 @@ def test_text_is_capped():
 def fake_llm(page, icp):
     fit = 9 if "attorney" in page["text"] else 2
     if fit == 9:
-        return {"company": "Harbor & Pike Law", "summary": "Three-attorney family law firm in Fort Myers doing phone intake via a receptionist.",
-                "fit_score": 9, "fit_reasons": ["phone intake", "small firm"],
-                "opener": "Saw that your receptionist takes intake details and an attorney calls back within a day.", "red_flags": []}
-    return {"company": "Loopwise", "summary": "Self-serve SaaS analytics company, 120 employees, no sales call needed.",
-            "fit_score": 2, "fit_reasons": ["not a services business"],
-            "opener": "Noticed Loopwise is fully self-serve with a free tier and no sales call.", "red_flags": ["self-serve product, no intake process"]}
+        return {
+            "company": "Harbor & Pike Law",
+            "summary": "Three-attorney family law firm in Fort Myers doing phone intake via a receptionist.",
+            "fit_score": 9,
+            "fit_reasons": ["phone intake", "small firm"],
+            "opener": "Saw that your receptionist takes intake details and an attorney calls back within a day.",
+            "red_flags": [],
+        }
+    return {
+        "company": "Loopwise",
+        "summary": "Self-serve SaaS analytics company, 120 employees, no sales call needed.",
+        "fit_score": 2,
+        "fit_reasons": ["not a services business"],
+        "opener": "Noticed Loopwise is fully self-serve with a free tier and no sales call.",
+        "red_flags": ["self-serve product, no intake process"],
+    }
 
 
 @pytest.mark.parametrize("fixture,expected", [("lawfirm.html", 9), ("saas.html", 2)])
 def test_assess_with_fake_fetch_and_llm(fixture, expected):
     def fetch(url):
         return {"url": url, **html_to_text((FIX / fixture).read_text())}
+
     a = assess("https://x.test", "small law firms that do intake by phone", llm=fake_llm, fetch=fetch)
     assert a.fit_score == expected
     assert a.company

@@ -43,7 +43,12 @@ describe("handleApi", () => {
   });
 
   it("turns db errors into a 500 with a message", async () => {
-    const db: Db = { run: async () => { throw new Error("connection refused"); }, close: async () => {} };
+    const db: Db = {
+      run: async () => {
+        throw new Error("connection refused");
+      },
+      close: async () => {},
+    };
     const r = await handleApi(db, u("/api/spend"));
     expect(r.status).toBe(500);
     expect(r.body).toEqual({ error: "connection refused" });

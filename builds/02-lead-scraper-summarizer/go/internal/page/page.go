@@ -16,7 +16,7 @@ import (
 
 const (
 	// UserAgent is sent on every fetch so site owners can identify the bot.
-	UserAgent = "Mozilla/5.0 (compatible; lead-scout/0.1; +https://github.com/mazomann/ai-automation-portfolio)"
+	UserAgent = "Mozilla/5.0 (compatible; lead-scout/0.1; +https://github.com/mazomann/projects)"
 	// MaxChars caps the visible text sent to the model; keeps token cost flat.
 	MaxChars = 6000
 	// MaxHeadings caps the number of h1-h3 headings kept.
@@ -27,9 +27,8 @@ const (
 	maxBody = 5 << 20
 )
 
-// HTTPClient performs fetches. It follows redirects (net/http default) and
-// times out after Timeout. Tests may replace it.
-var HTTPClient = &http.Client{Timeout: Timeout}
+// httpClient follows redirects (net/http default) and times out after Timeout.
+var httpClient = &http.Client{Timeout: Timeout}
 
 // Page is the reduced homepage. JSON tags match the Python dict keys so the
 // payload sent to the model is identical across implementations.
@@ -50,7 +49,7 @@ func Fetch(ctx context.Context, url string) (string, error) {
 	}
 	req.Header.Set("User-Agent", UserAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
-	resp, err := HTTPClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -86,10 +85,7 @@ var dropped = map[string]bool{
 // Reduce turns raw HTML into a Page (URL left empty).
 func Reduce(src string) Page {
 	p := Page{Headings: []string{}}
-	doc, err := html.Parse(strings.NewReader(src))
-	if err != nil {
-		return p
-	}
+	doc, _ := html.Parse(strings.NewReader(src)) // only fails on reader errors; strings.Reader has none
 	var texts []string
 	var metaName, metaOG string
 

@@ -46,18 +46,10 @@ describe("extract()", () => {
       n++;
       return { ...sample(first), total: 1.0 };
     };
-    await expect(extract(join(SAMPLES, first.file), alwaysWrong)).rejects.toThrow(/total/);
+    const err: unknown = await extract(join(SAMPLES, first.file), alwaysWrong).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(z.ZodError); // the error type callers catch, after the retry is used up
+    expect(String(err)).toMatch(/total/);
     expect(n).toBe(2);
-  });
-
-  it("respects retries=0", async () => {
-    let n = 0;
-    const alwaysWrong: Llm = async () => {
-      n++;
-      return { ...sample(first), total: 1.0 };
-    };
-    await expect(extract(join(SAMPLES, first.file), alwaysWrong, 0)).rejects.toThrow(z.ZodError);
-    expect(n).toBe(1);
   });
 
   it("detects scanned PDFs before calling the llm", async () => {

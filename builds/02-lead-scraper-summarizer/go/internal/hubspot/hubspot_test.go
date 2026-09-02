@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mazomann/ai-automation-portfolio/builds/02-lead-scraper-summarizer/go/internal/lead"
+	"github.com/mazomann/projects/builds/02-lead-scraper-summarizer/go/internal/lead"
 )
 
 func TestDomain(t *testing.T) {

@@ -1,21 +1,25 @@
 """Score a list of company URLs against an ideal customer profile (ICP).
 
 Usage:
-    uv run python -m leadscout.scout urls.txt --icp "small law firms in Florida that still do intake by phone" --csv leads.csv
+    uv run python -m leadscout.scout urls.txt --csv leads.csv \
+        --icp "small law firms in Florida that still do intake by phone"
     uv run python -m leadscout.scout urls.txt --icp "..." --hubspot     # also create companies (HUBSPOT_TOKEN)
 Env: ANTHROPIC_API_KEY, LEAD_MODEL (default claude-sonnet-5), HUBSPOT_TOKEN (private app token)
 """
+
 from __future__ import annotations
+
 import argparse
 import csv
 import json
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+
 from .page import scrape
-from .schema import LeadAssessment, JSON_SCHEMA
+from .schema import JSON_SCHEMA, LeadAssessment
 
 SYSTEM = (
     "You are a sales researcher. Given the text of a company website and an ideal customer profile (ICP), "
@@ -29,6 +33,7 @@ LLM = Callable[[dict, str], dict]
 
 def claude_llm(page: dict, icp: str) -> dict:
     from anthropic import Anthropic
+
     client = Anthropic()
     content = json.dumps({"icp": icp, "page": page}, ensure_ascii=False)
     resp = client.messages.create(
@@ -51,11 +56,23 @@ def assess(url: str, icp: str, llm: LLM = claude_llm, fetch: Callable[[str], dic
 def hubspot_upsert(a: LeadAssessment, url: str, token: str) -> str:
     """Create a company in HubSpot with the score as a custom property. Returns the record id."""
     import httpx
+
     domain = url.split("//", 1)[-1].split("/", 1)[0].removeprefix("www.")
-    body = {"properties": {"name": a.company, "domain": domain, "description": a.summary,
-                           "lead_fit_score": a.fit_score, "lead_opener": a.opener}}
-    r = httpx.post("https://api.hubapi.com/crm/v3/objects/companies", json=body,
-                   headers={"Authorization": f"Bearer {token}"}, timeout=20)
+    body = {
+        "properties": {
+            "name": a.company,
+            "domain": domain,
+            "description": a.summary,
+            "lead_fit_score": a.fit_score,
+            "lead_opener": a.opener,
+        }
+    }
+    r = httpx.post(
+        "https://api.hubapi.com/crm/v3/objects/companies",
+        json=body,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=20,
+    )
     r.raise_for_status()
     return r.json()["id"]
 

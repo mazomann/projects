@@ -41,6 +41,22 @@ Env: `ANTHROPIC_API_KEY`, `LEAD_MODEL` (default `claude-sonnet-5`), `HUBSPOT_TOK
 
 Progress goes to stderr (`[3/12]  9  Harbor & Pike Law` or `[4/12] FAILED https://... : reason`), the summary line `N scored, M failed -> leads.csv` goes to stdout. Exit code is 1 only when every URL failed, so a scheduled run with one dead site still succeeds.
 
+## Check
+
+The gate before committing. Run all of these from this directory (`builds/02-lead-scraper-summarizer/go`); Go lives at `C:\Program Files\Go\bin`.
+
+```bash
+gofmt -l .      # prints the path of every misformatted file; silence means pass (gofmt -w . fixes)
+go vet ./...    # suspicious constructs the compiler allows
+go test ./...   # unit tests, no network and no API key
+```
+
+Optional fourth gate, if `go install honnef.co/go/tools/cmd/staticcheck@latest` has been run:
+
+```bash
+staticcheck ./...   # unused code, simplifications, bug patterns vet misses
+```
+
 ## How it mirrors the Python version
 
 | Python | Go |

@@ -1,0 +1,103 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - builds/01-invoice-extractor
+          - builds/02-lead-scraper-summarizer
+          - builds/03-inbox-triage
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest -q
+
+  typescript:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - builds/01-invoice-extractor/ts
+          - apps/dashboard
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+      - run: npm ci
+      - run: npm run check
+
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: builds/02-lead-scraper-summarizer/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: builds/02-lead-scraper-summarizer/go/go.sum
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build ./cmd/leadscout
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/automations
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run mypy
+      - run: uv run python db/migrate.py
+      - run: uv run python db/seed.py
+      - name: schema smoke queries
+        run: |
+          uv run python -c "import os, psycopg; c = psycopg.connect(os.environ['DATABASE_URL']); print(c.execute('select count(*) from v_invoice').fetchone(), c.execute('select count(*) from v_daily_triage').fetchone())"
+      - name: constraint must reject a bad total
+        run: |
+          uv run python -c "import os, psycopg; c = psycopg.connect(os.environ['DATABASE_URL']); r = c.execute('select id from vendor limit 1').fetchone()
+          try:
+              c.execute('insert into invoice (vendor_id, invoice_number, invoice_date, subtotal, tax, total) values (%s, %s, %s, 100, 7, 999)', (r[0], 'CI-BAD', '2026-01-01')); raise SystemExit('constraint did not fire')
+          except psycopg.errors.CheckViolation:
+              print('check constraint fired as expected')"

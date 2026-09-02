@@ -3,6 +3,7 @@ package page
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -20,15 +21,6 @@ func load(t *testing.T, name string) string {
 	return string(b)
 }
 
-func contains(list []string, want string) bool {
-	for _, s := range list {
-		if s == want {
-			return true
-		}
-	}
-	return false
-}
-
 func TestReduceStripsChromeAndKeepsSignal(t *testing.T) {
 	p := Reduce(load(t, "lawfirm.html"))
 	if !strings.HasPrefix(p.Title, "Harbor & Pike Law") {
@@ -37,7 +29,7 @@ func TestReduceStripsChromeAndKeepsSignal(t *testing.T) {
 	if !strings.Contains(p.Description, "239-555-0100") {
 		t.Errorf("description = %q", p.Description)
 	}
-	if !contains(p.Headings, "Practice areas") {
+	if !slices.Contains(p.Headings, "Practice areas") {
 		t.Errorf("headings = %v", p.Headings)
 	}
 	if strings.Contains(p.Text, "var x=1") {
@@ -59,7 +51,7 @@ func TestReduceUsesOGDescriptionFallback(t *testing.T) {
 	if !strings.Contains(p.Description, "Self-serve product analytics") {
 		t.Errorf("description = %q", p.Description)
 	}
-	if !contains(p.Headings, "Understand every user journey") {
+	if !slices.Contains(p.Headings, "Understand every user journey") {
 		t.Errorf("headings = %v", p.Headings)
 	}
 }

@@ -7,13 +7,21 @@ Env:
     ANTHROPIC_API_KEY   required for the real LLM call
     INVOICE_MODEL       default claude-sonnet-5
 """
+
 from __future__ import annotations
-import argparse, csv, json, os, sys
+
+import argparse
+import csv
+import json
+import os
+import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+
 from pydantic import ValidationError
+
 from .pdf_text import pdf_to_text
-from .schema import Invoice, JSON_SCHEMA
+from .schema import JSON_SCHEMA, Invoice
 
 SYSTEM = (
     "You extract structured data from invoice text. Return only the fields in the schema. "
@@ -24,9 +32,11 @@ SYSTEM = (
 
 LLM = Callable[[str], dict]  # invoice text -> raw dict matching JSON_SCHEMA
 
+
 def claude_llm(text: str) -> dict:
     """Real call: Claude structured output constrained to JSON_SCHEMA."""
     from anthropic import Anthropic
+
     client = Anthropic()  # reads ANTHROPIC_API_KEY
     resp = client.messages.create(
         model=os.environ.get("INVOICE_MODEL", "claude-sonnet-5"),
@@ -40,19 +50,19 @@ def claude_llm(text: str) -> dict:
     raw = next(b.text for b in resp.content if b.type == "text")
     return json.loads(raw)
 
-def extract(pdf: str | Path, llm: LLM = claude_llm, retries: int = 1) -> Invoice:
-    """Extract and validate. On a validation failure, retry once with the error fed back (LLMs fix arithmetic on a second pass)."""
+
+def extract(pdf: str | Path, llm: LLM = claude_llm) -> Invoice:
+    """Extract and validate.
+
+    On a validation failure, retry once with the error fed back (LLMs fix arithmetic on a second pass).
+    """
     text = pdf_to_text(pdf)
-    prompt = text
-    last_err: Exception | None = None
-    for _ in range(retries + 1):
-        raw = llm(prompt)
-        try:
-            return Invoice(**raw)
-        except ValidationError as e:
-            last_err = e
-            prompt = f"{text}\n\nYour previous extraction failed validation:\n{e}\nReturn a corrected extraction."
-    raise last_err  # type: ignore[misc]
+    try:
+        return Invoice(**llm(text))
+    except ValidationError as e:
+        retry = f"{text}\n\nYour previous extraction failed validation:\n{e}\nReturn a corrected extraction."
+        return Invoice(**llm(retry))
+
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -71,12 +81,14 @@ def main(argv: list[str] | None = None) -> int:
         new = not Path(a.csv).exists()
         with open(a.csv, "a", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()) if rows else ["file"])
-            if new: w.writeheader()
+            if new:
+                w.writeheader()
             w.writerows(rows)
         print(f"wrote {len(rows)} rows to {a.csv}, {failures} failed")
     else:
         print(json.dumps(rows, indent=2))
     return 1 if failures else 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

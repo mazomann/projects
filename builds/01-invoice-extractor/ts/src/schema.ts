@@ -4,17 +4,12 @@
  */
 import { z } from "zod";
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** "YYYY-MM-DD" -> comparable number (days are compared lexicographically-safe as ms since epoch). */
-function dateMs(s: string): number {
-  return Date.parse(`${s}T00:00:00Z`);
-}
-
+// Regex-checked YYYY-MM-DD strings compare chronologically with `<`, so no Date objects are needed
+// anywhere below; Date.parse only decides whether the calendar date exists (rejects 2026-02-30).
 const isoDate = z
   .string()
-  .regex(ISO_DATE, "expected ISO 8601 date, YYYY-MM-DD")
-  .refine((s) => !Number.isNaN(dateMs(s)), "invalid calendar date");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "expected ISO 8601 date, YYYY-MM-DD")
+  .refine((s) => !Number.isNaN(Date.parse(`${s}T00:00:00Z`)), "invalid calendar date");
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -24,7 +19,6 @@ export const LineItem = z.object({
   unit_price: z.number().min(0),
   amount: z.number().min(0),
 });
-export type LineItem = z.infer<typeof LineItem>;
 
 export const Invoice = z
   .object({
@@ -60,7 +54,7 @@ export const Invoice = z
         message: `subtotal ${inv.subtotal} + tax ${inv.tax} != total ${inv.total}`,
       });
     }
-    if (inv.due_date !== null && dateMs(inv.due_date) < dateMs(inv.invoice_date)) {
+    if (inv.due_date !== null && inv.due_date < inv.invoice_date) {
       ctx.addIssue({ code: "custom", path: ["due_date"], message: "due_date before invoice_date" });
     }
   });
@@ -78,14 +72,9 @@ export function toRow(inv: Invoice): Record<string, string | number> {
     tax: inv.tax,
     total: inv.total,
     line_items: inv.line_items
-      .map((li) => `${fmtG(li.quantity)} x ${li.description} @ ${li.unit_price.toFixed(2)}`)
+      .map((li) => `${li.quantity} x ${li.description} @ ${li.unit_price.toFixed(2)}`)
       .join("; "),
   };
-}
-
-/** Python's `%g`-ish formatting for quantities: 4 -> "4", 1.5 -> "1.5". */
-function fmtG(n: number): string {
-  return Number.isInteger(n) ? String(n) : String(Number(n.toPrecision(6)));
 }
 
 // JSON schema handed to the LLM (strict: no extra keys, everything required so nothing is silently skipped).

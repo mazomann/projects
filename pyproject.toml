@@ -4,3 +4,20 @@ version = "0.1.0"
 description = "Root tooling: database migrations and seed for the automation portfolio."
 requires-python = ">=3.11"
 dependencies = ["psycopg[binary]>=3.2"]
+
+[dependency-groups]
+dev = ["ruff>=0.6", "mypy>=1.11"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true
+ignore_missing_imports = true
+files = ["db", "n8n", ".claude/hooks", ".claude/skills/new-build"]

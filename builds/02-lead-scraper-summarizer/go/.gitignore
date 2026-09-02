@@ -1,3 +1,4 @@
-leadscout
-leadscout.exe
+# built binary at the module root; anchored so it does not match cmd/leadscout/
+/leadscout
+/leadscout.exe
 *.csv
