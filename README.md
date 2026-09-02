@@ -30,7 +30,26 @@ Python is the primary implementation. Build 01 also has a [TypeScript twin](buil
 
 ## Layout
 
-- `builds/` one folder per shipped automation, plus [rescue-checklist.md](builds/rescue-checklist.md) for fixing other people's broken workflows
+- `builds/` one folder per shipped automation, plus [rescue-checklist.md](builds/rescue-checklist.md) for diagnosing broken workflows
+- `db/` PostgreSQL 17 schema, migrations, seed data, and SQL exercises
+- `apps/dashboard/` Node + TypeScript server over the same database
 - `n8n/` local n8n config and env template
-- `gigs/` marketplace [profile copy](gigs/profiles/profile.md), [offers and pricing](gigs/offers/offers.md), [proposal template](gigs/proposals/template.md), pipeline tracker
-- `learning/` session log
+
+## Quality gates
+
+Every package runs the same four gates before anything is called done: lint, format check, type check, tests.
+
+```bash
+cd builds/<name> && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest -q
+cd builds/01-invoice-extractor/ts && npm run check       # eslint, prettier, tsc, vitest
+cd builds/02-lead-scraper-summarizer/go && gofmt -l . && go vet ./... && go test ./...
+```
+
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs all of them on every push, plus a job that spins up PostgreSQL 17, migrates, seeds, and asserts that a CHECK constraint rejects an invoice whose total does not match its line items.
+
+## What I learned
+
+- Structured output beats prompt-and-parse: give the model a JSON schema, validate the result against the same model the database constrains, and feed validation errors back on retry instead of accepting a near-miss.
+- Validation belongs in two places on purpose. The Python model and the SQL CHECK constraints encode the same rules, so a bug in one is caught by the other.
+- n8n is the delivery shell, not the logic. Expressions end at the first `}}`, so JSON bodies get built in Code nodes, and items are paired positionally rather than by hope.
+- Writing build 01 twice, in Python and TypeScript, and build 02 in Go, made the design decisions visible: what was essential showed up in all of them, what was habit did not.

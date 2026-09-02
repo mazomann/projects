@@ -20,4 +20,6 @@ python_version = "3.11"
 strict = false
 warn_unused_ignores = true
 ignore_missing_imports = true
-files = ["db", "n8n", ".claude/hooks", ".claude/skills/new-build"]
+# Only the published paths, so `uv run mypy` works in the public mirror too.
+# Private paths are type-checked with explicit arguments by .claude/hooks/run-tests.py.
+files = ["db", "n8n"]

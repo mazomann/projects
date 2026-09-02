@@ -87,8 +87,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync
-      - run: uv run ruff check .
-      - run: uv run mypy
+      - run: uv run ruff check db n8n
+      - run: uv run mypy db n8n
       - run: uv run python db/migrate.py
       - run: uv run python db/seed.py
       - name: schema smoke queries
